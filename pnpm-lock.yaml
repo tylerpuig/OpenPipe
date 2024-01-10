@@ -95,6 +95,9 @@ importers:
       concurrently:
         specifier: ^8.2.0
         version: 8.2.0
+      cross-env:
+        specifier: ^7.0.3
+        version: 7.0.3
       crypto-random-string:
         specifier: ^5.0.0
         version: 5.0.0
@@ -4622,6 +4625,14 @@ packages:
       '@emotion/serialize': 0.11.16
       '@emotion/sheet': 0.9.4
       '@emotion/utils': 0.11.3
+    dev: false
+
+  /cross-env@7.0.3:
+    resolution: {integrity: sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==}
+    engines: {node: '>=10.14', npm: '>=6', yarn: '>=1'}
+    hasBin: true
+    dependencies:
+      cross-spawn: 7.0.3
     dev: false
 
   /cross-spawn@7.0.3:

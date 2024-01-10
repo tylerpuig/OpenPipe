@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "next build",
-    "dev:next": "NODE_OPTIONS='--no-node-snapshot' TZ=UTC next dev",
+    "dev:next": "cross-env NODE_OPTIONS='--no-node-snapshot' TZ=UTC next dev",
     "dev:worker": "NODE_OPTIONS='--no-node-snapshot' tsx --watch src/server/tasks/worker.ts",
     "worker": "tsx src/server/tasks/worker.ts",
     "dev": "tsx scripts/run-dev.ts",
@@ -59,6 +59,7 @@
     "archiver": "^6.0.0",
     "chroma-js": "^2.4.2",
     "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3",
     "crypto-random-string": "^5.0.0",
     "dayjs": "^1.11.8",
     "dedent": "^1.0.1",
