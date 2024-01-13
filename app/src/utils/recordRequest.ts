@@ -10,7 +10,6 @@ import { calculateCost } from "~/server/fineTuningProviders/supportedModels";
 import { prisma } from "~/server/db";
 import { typedFineTune } from "~/types/dbColumns.types";
 import { chatCompletionOutput, type chatCompletionInput } from "~/types/shared.types";
-import { posthogServerClient } from "./analytics/serverAnalytics";
 import {
   countLlamaInputTokens,
   countLlamaOutputTokens,
@@ -23,6 +22,7 @@ export const recordUsage = async ({
   projectId,
   requestedAt,
   receivedAt,
+  cacheHit,
   inputPayload,
   completion,
   logRequest,
@@ -31,7 +31,8 @@ export const recordUsage = async ({
 }: {
   projectId: string;
   requestedAt: number;
-  receivedAt: number;
+  receivedAt?: number;
+  cacheHit: boolean;
   inputPayload: z.infer<typeof chatCompletionInput>;
   completion: unknown;
   logRequest?: boolean;
@@ -60,23 +61,14 @@ export const recordUsage = async ({
         data: {
           fineTuneId: fineTune.id,
           projectId: fineTune.projectId,
-          type: UsageType.EXTERNAL,
+          type: cacheHit ? UsageType.CACHE_HIT : UsageType.EXTERNAL,
           inputTokens: usage?.inputTokens ?? 0,
           outputTokens: usage?.outputTokens ?? 0,
-          cost: usage?.cost ?? 0,
+          cost: cacheHit ? 0 : usage?.cost ?? 0,
           billable: fineTune.provider === "openpipe",
         },
       })
       .catch((error) => captureException(error));
-
-    posthogServerClient?.capture({
-      distinctId: projectId,
-      event: "fine-tune-usage",
-      properties: {
-        model: inputPayload.model,
-        ...usage,
-      },
-    });
   }
 
   if (logRequest) {
@@ -85,6 +77,7 @@ export const recordUsage = async ({
       usage,
       requestedAt,
       receivedAt,
+      cacheHit,
       reqPayload: inputPayload,
       respPayload: completion,
       tags,
@@ -169,6 +162,7 @@ export const recordLoggedCall = async ({
   usage,
   requestedAt,
   receivedAt,
+  cacheHit,
   reqPayload,
   respPayload,
   statusCode,
@@ -179,6 +173,7 @@ export const recordLoggedCall = async ({
   usage?: CalculatedUsage;
   requestedAt: number;
   receivedAt?: number;
+  cacheHit: boolean;
   reqPayload: unknown;
   respPayload?: unknown;
   statusCode?: number;
@@ -196,15 +191,16 @@ export const recordLoggedCall = async ({
         id: newLoggedCallId,
         projectId,
         requestedAt: new Date(requestedAt),
-        model: validatedReqPayload.success ? validatedReqPayload.data.model : null,
         receivedAt: receivedAt ? new Date(receivedAt) : undefined,
+        cacheHit: cacheHit ?? false,
+        model: validatedReqPayload.success ? validatedReqPayload.data.model : null,
         reqPayload: (reqPayload === null ? Prisma.JsonNull : reqPayload) as Prisma.InputJsonValue,
         respPayload: (respPayload === null
           ? Prisma.JsonNull
           : respPayload) as Prisma.InputJsonValue,
         statusCode: statusCode,
         errorMessage: errorMessage,
-        durationMs: receivedAt ? receivedAt - requestedAt : undefined,
+        durationMs: receivedAt && !cacheHit ? receivedAt - requestedAt : undefined,
         inputTokens: usage?.inputTokens,
         outputTokens: usage?.outputTokens,
         cost: usage?.cost,
