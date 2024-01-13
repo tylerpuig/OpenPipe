@@ -17,12 +17,15 @@ import { OpenPipeArgs, OpenPipeMeta, type OpenPipeConfig, getTags, withTimeout }
 
 export type ClientOptions = openai.ClientOptions & { openpipe?: OpenPipeConfig };
 export default class OpenAI extends openai.OpenAI {
+  delayLog: boolean;
   constructor({ openpipe, ...options }: ClientOptions = {}) {
     super({ ...options });
 
     const openPipeApiKey = openpipe?.apiKey ?? readEnv("OPENPIPE_API_KEY");
     const openpipeBaseUrl =
       openpipe?.baseUrl ?? readEnv("OPENPIPE_BASE_URL") ?? "https://app.openpipe.ai/api/v1";
+
+    this.delayLog = openpipe?.delayLog ?? false; // Default to false if not provided
 
     if (openPipeApiKey) {
       this.chat.setClients(
@@ -58,6 +61,7 @@ class WrappedCompletions extends openai.OpenAI.Chat.Completions {
   openaiClient: openai.OpenAI;
   opReportingClient?: OPClient;
   opCompletionClient?: openai.OpenAI;
+  reportData: Map<string, Parameters<DefaultService["report"]>[0]> = new Map();
 
   constructor(client: openai.OpenAI) {
     super(client);
@@ -69,6 +73,22 @@ class WrappedCompletions extends openai.OpenAI.Chat.Completions {
       this.opReportingClient
         ? await this.opReportingClient.default.report(args)
         : Promise.resolve();
+    } catch (e) {
+      // Ignore errors with reporting
+    }
+  }
+
+  private logDelayEnabled() {
+    return this.openaiClient instanceof OpenAI ? this.openaiClient.delayLog : false;
+  }
+
+  public async logReport(responseId: string) {
+    try {
+      const responseData = this.reportData.get(responseId);
+      if (!responseData) return;
+
+      await this._report(responseData);
+      this.reportData.delete(responseId);
     } catch (e) {
       // Ignore errors with reporting
     }
@@ -100,6 +120,7 @@ class WrappedCompletions extends openai.OpenAI.Chat.Completions {
     const openpipe = { logRequest: true, ...rawOpenpipe };
     const requestedAt = Date.now();
     let reportingFinished: OpenPipeMeta["reportingFinished"] = Promise.resolve();
+    const id: string = new Date().getTime().toString();
 
     if (body.model.startsWith("openpipe:")) {
       if (!this.opCompletionClient) throw new Error("OpenPipe client not set");
@@ -137,20 +158,26 @@ class WrappedCompletions extends openai.OpenAI.Chat.Completions {
       } else {
         const response = await super.create(body, options);
 
-        reportingFinished = openpipe.logRequest
-          ? this._report({
-              requestedAt,
-              receivedAt: Date.now(),
-              reqPayload: body,
-              respPayload: response,
-              statusCode: 200,
-              tags: getTags(openpipe),
-            })
-          : Promise.resolve();
+        const responseData = {
+          requestedAt,
+          receivedAt: Date.now(),
+          reqPayload: body,
+          respPayload: response,
+          statusCode: 200,
+          tags: getTags(openpipe),
+        };
+
+        if (this.logDelayEnabled()) {
+          this.reportData.set(id, responseData);
+        } else {
+          reportingFinished = openpipe.logRequest ? this._report(responseData) : Promise.resolve();
+        }
+
         return {
           ...response,
           openpipe: {
             reportingFinished,
+            id,
           },
         };
       }

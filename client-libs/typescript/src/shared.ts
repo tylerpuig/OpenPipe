@@ -6,6 +6,7 @@ import { DefaultService } from "./codegen";
 export type OpenPipeConfig = {
   apiKey?: string;
   baseUrl?: string;
+  delayLog?: boolean;
 };
 
 export type OpenPipeArgs = {
@@ -21,6 +22,7 @@ export type OpenPipeMeta = {
   // need to wait until the report is sent to take further action, you can await
   // this promise.
   reportingFinished: Promise<void>;
+  id?: string;
 };
 
 export type ReportFn = (...args: Parameters<DefaultService["report"]>) => Promise<void>;

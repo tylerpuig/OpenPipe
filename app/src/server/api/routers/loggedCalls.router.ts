@@ -4,7 +4,7 @@ import { WritableStreamBuffer } from "stream-buffers";
 import type { JsonValue } from "type-fest";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { kysely } from "~/server/db";
+import { kysely, prisma } from "~/server/db";
 import { requireCanViewProject } from "~/utils/accessControl";
 import hashObject from "~/server/utils/hashObject";
 import { constructLoggedCallFiltersQuery } from "~/server/utils/constructLoggedCallFiltersQuery";
@@ -27,6 +27,24 @@ export const loggedCallsRouter = createTRPCRouter({
 
       const baseQuery = constructLoggedCallFiltersQuery({ filters: input.filters, projectId });
 
+      console.time("prisma");
+      const test = await prisma.loggedCall.findMany({
+        where: {
+          projectId,
+        },
+        orderBy: {
+          requestedAt: "desc",
+        },
+        take: pageSize,
+        skip: (page - 1) * pageSize,
+        include: {
+          tags: true,
+        },
+      });
+      console.timeEnd("prisma");
+
+      console.log(test);
+      console.time("kysely");
       const rawCalls = await baseQuery
         .select((eb) => [
           "lc.id as id",
@@ -63,6 +81,7 @@ export const loggedCallsRouter = createTRPCRouter({
           },
           {} as Record<string, string | null>,
         );
+        console.timeEnd("kysely");
 
         return {
           id: rawCall.id,
