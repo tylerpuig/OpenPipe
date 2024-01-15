@@ -82,6 +82,24 @@ class WrappedCompletions extends openai.OpenAI.Chat.Completions {
     return this.openaiClient instanceof OpenAI ? this.openaiClient.delayLog : false;
   }
 
+  public async customReport(
+    responseId: string,
+    request: Record<string, any>,
+    response: Record<string, any>,
+  ) {
+    try {
+      const responseData = this.reportData.get(responseId);
+      if (!responseData) return;
+      responseData.reqPayload = request;
+      responseData.respPayload = response;
+
+      await this._report(responseData);
+      this.reportData.delete(responseId);
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
   public async logReport(responseId: string) {
     try {
       const responseData = this.reportData.get(responseId);
@@ -167,7 +185,7 @@ class WrappedCompletions extends openai.OpenAI.Chat.Completions {
           tags: getTags(openpipe),
         };
 
-        if (this.logDelayEnabled()) {
+        if (this.logDelayEnabled() && openpipe.logRequest) {
           this.reportData.set(id, responseData);
         } else {
           reportingFinished = openpipe.logRequest ? this._report(responseData) : Promise.resolve();
